@@ -36,7 +36,7 @@ your best time for each level (and for each surprise maze size).
 | `*` | Star to collect |
 | `a` `b` `c` / `A` `B` `C` | Pink, purple and mint keys and their doors |
 | `H` / `o` / `G` | Heart box, heart spot, and the gate the spots open |
-| `T` | Treasure chest: rolls a die for 1-3 stars, a tornado, a ghost or a trap door |
+| `T` | Treasure chest: asks to open, then rolls a die for 1-3 stars, a tornado, a ghost or a trap door |
 
 Levels live between `/*LEVELS-START*/` and `/*LEVELS-END*/` in `web/game.html`.
 After editing one, run `node tools/check_levels.js` to make sure every level can

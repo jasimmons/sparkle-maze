@@ -190,6 +190,10 @@ button:focus-visible { outline: 4px solid var(--lilac); outline-offset: 2px; }
         <div class="die" id="die" aria-hidden="true"></div>
         <div class="chest-icon" id="chestIcon" hidden></div>
         <p id="chestText" hidden></p>
+        <div class="row" id="chestAsk" hidden>
+          <button class="pill" id="chestYes">Open it!</button>
+          <button class="pill ghost" id="chestNo">No thanks</button>
+        </div>
         <button class="pill" id="chestOk" hidden>OK!</button>
       </div>
     </div>
@@ -879,6 +883,7 @@ const LEVELS = [
   const PIPS = { 1: [[50, 50]], 2: [[28, 28], [72, 72]], 3: [[26, 26], [50, 50], [74, 74]], 4: [[28, 28], [72, 28], [28, 72], [72, 72]], 5: [[26, 26], [74, 26], [50, 50], [26, 74], [74, 74]], 6: [[28, 24], [72, 24], [28, 50], [72, 50], [28, 76], [72, 76]] };
   const dieSvg = (n) => `<svg viewBox="0 0 100 100"><rect x="5" y="5" width="90" height="90" rx="20" fill="#fff" stroke="#e45d9c" stroke-width="5"/>${PIPS[n].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="9" fill="${n === 1 ? "#ff5fa2" : "#7356c9"}"/>`).join("")}</svg>`;
   const GHOST_SVG = '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M12 56V30a20 20 0 0 1 40 0v26l-6.7-5-6.6 5-6.7-5-6.6 5-6.7-5z" fill="#fff" stroke="#c9b3e6" stroke-width="2.5" stroke-linejoin="round"/><path d="M38 12l6-4v8zM50 12l-6-4v8z" fill="#ff7eb6"/><circle cx="44" cy="12" r="2" fill="#d63f84"/><ellipse cx="25" cy="30" rx="3" ry="4" fill="#4a2347"/><ellipse cx="39" cy="30" rx="3" ry="4" fill="#4a2347"/><ellipse cx="19.5" cy="38" rx="4" ry="2.5" fill="#ffb3d1"/><ellipse cx="44.5" cy="38" rx="4" ry="2.5" fill="#ffb3d1"/><path d="M28 39q4 4 8 0" stroke="#4a2347" stroke-width="2.2" fill="none" stroke-linecap="round"/></svg>';
+  const CHEST_SVG = '<svg viewBox="0 0 64 64" aria-hidden="true"><ellipse cx="32" cy="56" rx="24" ry="4" fill="rgba(120,60,120,.15)"/><rect x="8" y="28" width="48" height="26" rx="5" fill="#e690bd" stroke="#a8507f" stroke-width="3"/><rect x="8" y="12" width="48" height="20" rx="10" fill="#f5b3d4" stroke="#a8507f" stroke-width="3"/><rect x="15" y="13" width="6" height="40" fill="#ffd46b"/><rect x="43" y="13" width="6" height="40" fill="#ffd46b"/><path d="M32 40c-7-5-8-11-3.5-12.5 2-.7 3.5.6 3.5 2 0-1.4 1.5-2.7 3.5-2 4.5 1.5 3.5 7.5-3.5 12.5z" fill="#ffd46b" stroke="#e9a93a" stroke-width="1.5"/><path d="M56 6l1.5 3.5L61 11l-3.5 1.5L56 16l-1.5-3.5L51 11l3.5-1.5z" fill="#ffd46b"/></svg>';
   const TORNADO_SVG = '<svg viewBox="0 0 64 64" aria-hidden="true" fill="none" stroke-linecap="round" stroke-width="5"><path d="M8 12h48" stroke="#b79ae8"/><path d="M13 22h36" stroke="#a98bf0"/><path d="M18 32h26" stroke="#8fc8ff"/><path d="M24 42h16" stroke="#8fe0c0"/><path d="M28 52h8" stroke="#ff8fb1"/><circle cx="50" cy="44" r="3" fill="#ffd46b" stroke="none"/><circle cx="12" cy="36" r="2.5" fill="#ff7eb6" stroke="none"/></svg>';
   const TRAPDOOR_SVG = '<svg viewBox="0 0 64 64" aria-hidden="true"><rect x="8" y="14" width="48" height="40" rx="8" fill="#e690bd" stroke="#a8507f" stroke-width="3"/><path d="M8 34h48M32 14v40" stroke="#a8507f" stroke-width="2.5"/><circle cx="32" cy="34" r="11" fill="#5b2a59"/><path d="M27 31l5 6 5-6" stroke="#ffd46b" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
@@ -906,11 +911,34 @@ const LEVELS = [
     };
   }
 
+  // Stepping on a chest first asks whether to open it. "No thanks" makes it vanish without a roll.
   function openChest() {
     if (won) return;
     chestOpen = true;
     timerPause();
     [523, 659, 784].forEach((f, i) => tone(f, 0.12, "triangle", 0.08, i * 0.05));
+    $("chestTitle").textContent = "A treasure chest!";
+    $("chestIcon").className = "chest-icon float";
+    $("chestIcon").innerHTML = CHEST_SVG;
+    $("chestText").textContent = "Do you want to open it? You might find stars, or a silly surprise!";
+    $("die").hidden = true; $("chestOk").hidden = true;
+    $("chestIcon").hidden = false; $("chestText").hidden = false; $("chestAsk").hidden = false;
+    $("chestScreen").hidden = false;
+    try { $("chestYes").focus({ preventScroll: true }); } catch (e) {}
+    say("A treasure chest! Do you want to open it?");
+  }
+
+  function skipChest() {
+    $("chestScreen").hidden = true;
+    $("chestAsk").hidden = true;
+    chestOpen = false;
+    sparkle(s.x, s.y, "#f5b3d4", 16);
+    tone(660, 0.1, "sine", 0.06); tone(440, 0.14, "sine", 0.06, 0.08);
+    try { canvas.focus({ preventScroll: true }); } catch (e) {}
+  }
+
+  function rollDice() {
+    $("chestAsk").hidden = true;
     sparkle(s.x, s.y, "#ffd46b", 18);
     $("chestTitle").textContent = "Rolling...";
     $("chestIcon").hidden = true; $("chestText").hidden = true; $("chestOk").hidden = true;
@@ -985,6 +1013,8 @@ const LEVELS = [
     updateHud();
   }
   $("chestOk").onclick = closeChest;
+  $("chestYes").onclick = rollDice;
+  $("chestNo").onclick = skipChest;
 
   // ---------- HUD ----------
   const keySvg = (c) => `<svg viewBox="0 0 24 24" aria-label="${KEY_COLORS[c].name} key"><g transform="rotate(-35 12 12)"><path d="M7 7.5c-2.4-2.6-6 .2-3.6 3.2L7 14l3.6-3.3C13 7.7 9.4 4.9 7 7.5z" fill="${KEY_COLORS[c].fill}" stroke="${KEY_COLORS[c].dark}" stroke-width="1.4"/><rect x="9" y="9.6" width="12" height="2.8" rx="1.2" fill="${KEY_COLORS[c].fill}" stroke="${KEY_COLORS[c].dark}" stroke-width="1.2"/><rect x="17" y="11.6" width="2.4" height="3.6" rx=".8" fill="${KEY_COLORS[c].fill}" stroke="${KEY_COLORS[c].dark}" stroke-width="1.2"/></g></svg>`;
@@ -1422,7 +1452,16 @@ const LEVELS = [
   window.addEventListener("keydown", (e) => {
     if (!started) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("playBtn").click(); } return; }
     if (!$("winScreen").hidden && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); $("nextBtn").click(); return; }
-    if (chestOpen) { if ((e.key === "Enter" || e.key === " ") && !$("chestOk").hidden) { e.preventDefault(); closeChest(); } return; }
+    if (chestOpen) {
+      const ask = !$("chestAsk").hidden;
+      if (ask && e.key === "Escape") { e.preventDefault(); skipChest(); }
+      else if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        if (ask) (document.activeElement === $("chestNo") ? skipChest : rollDice)();
+        else if (!$("chestOk").hidden) closeChest();
+      }
+      return;
+    }
     const d = KEYMAP[e.key];
     if (d) { e.preventDefault(); path = []; tryMove(d); return; }
     if (e.key === "z" || e.key === "Z" || e.key === "Backspace") { e.preventDefault(); undo(); }
