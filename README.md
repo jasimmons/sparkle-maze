@@ -31,10 +31,11 @@ it is published from a copy with the levels baked in:
 
 ## Surprise maze
 
-The dice button makes a new random maze (Small 13x11 or Big 25x21) with one
-treasure chest. Opening it rolls a die: 1-3 finds that many stars, 4 is a
-tornado that carries you somewhere new, 5 is a sleepy ghost that takes your
-stars, and 6 is a trap door to a brand new maze (you keep stars and keys).
+The dice button makes a new random maze (Small 13x11 or Big 25x21). A small
+maze hides one treasure chest and a big one hides 2 to 5. Opening a chest rolls
+a die: 1-3 finds that many stars, 4 is a tornado that carries you somewhere
+new, 5 is a sleepy ghost that takes your stars, and 6 is a trap door to a
+brand new maze (you keep stars and keys).
 
 Every level has a timer that starts on the first step, and the game remembers
 your best time for each level (and for each surprise maze size).
@@ -49,7 +50,7 @@ your best time for each level (and for each surprise maze size).
 | `*` | Star to collect |
 | `a` `b` `c` / `A` `B` `C` | Pink, purple and mint keys and their doors |
 | `H` / `o` / `G` | Heart box, heart spot, and the gate the spots open |
-| `T` | Treasure chest: asks to open, then rolls a die for 1-3 stars, a tornado, a ghost or a trap door |
+| `T` | Treasure chest: asks to open, then rolls a die for 1-3 stars (or skip it for now), a tornado, a ghost or a trap door |
 
 ## Making levels
 
