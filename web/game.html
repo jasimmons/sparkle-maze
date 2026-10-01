@@ -1078,7 +1078,7 @@ const INLINE_LEVELS = null;
       }
     }
     g[1][1] = "P";
-    return { name: "Surprise maze", fog: true, hint: "A surprise maze! Find the rainbow door. There's a treasure chest hiding somewhere too!", map: g.map((r) => r.join("")) };
+    return { name: "Surprise maze", fog: true, hint: `A surprise maze! Find the rainbow door. ${big ? "There are treasure chests" : "There's a treasure chest"} hiding somewhere too!`, map: g.map((r) => r.join("")) };
   }
 
   // ---------- rendering ----------
