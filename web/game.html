@@ -1061,10 +1061,22 @@ const INLINE_LEVELS = null;
     }
     const ends = deadEnds(dist).sort(() => Math.random() - 0.5).slice(0, big ? 10 : 5);
     for (const k of ends) { const [x, y] = k.split(",").map(Number); g[y][x] = "*"; }
-    // one treasure chest: a spare dead end if there is one, otherwise any floor tile away from the start
-    let chestSpots = deadEnds(dist);
-    if (!chestSpots.length) chestSpots = [...dist.keys()].filter((k) => { const [x, y] = k.split(",").map(Number); return g[y][x] === "." && dist.get(k) > 3; });
-    if (chestSpots.length) { const [x, y] = chestSpots[Math.floor(Math.random() * chestSpots.length)].split(",").map(Number); g[y][x] = "T"; }
+    // Treasure chests: one in a small maze, 2 or 3 in a big one. Prefer spare dead ends, then any floor tile
+    // away from the start, and keep chests at least 6 steps apart (by grid distance) when there's room.
+    const chestCount = big ? 2 + Math.floor(Math.random() * 2) : 1;
+    const shuffle = (a) => a.sort(() => Math.random() - 0.5);
+    const floorSpots = [...dist.keys()].filter((k) => { const [x, y] = k.split(",").map(Number); return g[y][x] === "." && dist.get(k) > 3; });
+    const candidates = [...shuffle(deadEnds(dist)), ...shuffle(floorSpots)];
+    const chests = [];
+    const farFromChests = (k) => { const [x, y] = k.split(",").map(Number); return chests.every(([cx, cy]) => Math.abs(cx - x) + Math.abs(cy - y) >= 6); };
+    for (const pass of [farFromChests, () => true]) {
+      for (const k of candidates) {
+        if (chests.length >= chestCount) break;
+        const [x, y] = k.split(",").map(Number);
+        if (g[y][x] !== "." || !pass(k)) continue;
+        g[y][x] = "T"; chests.push([x, y]);
+      }
+    }
     g[1][1] = "P";
     return { name: "Surprise maze", fog: true, hint: "A surprise maze! Find the rainbow door. There's a treasure chest hiding somewhere too!", map: g.map((r) => r.join("")) };
   }
