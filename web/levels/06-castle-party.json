@@ -1,0 +1,18 @@
+{
+  "name": "Castle Party",
+  "fog": true,
+  "hint": "Castle party! Use all three keys and the heart box to reach the rainbow door.",
+  "map": [
+    "#############",
+    "#P..#*...#c*#",
+    "#.#.#.#.##.##",
+    "#.#...#..B..#",
+    "#.###########",
+    "#a.*.#..*..b#",
+    "##.#.A.H.o..#",
+    "#*.#.#......#",
+    "####C########",
+    "#*.....G...E#",
+    "#############"
+  ]
+}

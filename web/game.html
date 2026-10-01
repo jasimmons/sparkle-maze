@@ -111,6 +111,7 @@ button:focus-visible { outline: 4px solid var(--lilac); outline-offset: 2px; }
 .bigstars svg { width: 44px; height: 44px; }
 .card .pill { font-size: 22px; padding: 12px 24px; background: var(--berry); color: #fff; box-shadow: 0 5px 0 var(--berry-deep); }
 .card .pill.ghost { background: var(--cream); color: var(--ink); box-shadow: 0 4px 0 #f0c9de; font-size: 18px; padding: 8px 18px; }
+.card .pill:disabled { opacity: .6; cursor: wait; }
 .card .row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
 .heroes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; width: 100%; }
 .hero { border: 4px solid #fff; border-radius: 22px; background: #fde8f3; cursor: pointer; padding: 6px 4px 8px; display: flex; flex-direction: column; align-items: center; gap: 2px; box-shadow: 0 4px 0 #f0c9de; font-family: var(--display); font-weight: 800; font-size: 17px; color: var(--ink); }
@@ -180,7 +181,7 @@ button:focus-visible { outline: 4px solid var(--lilac); outline-offset: 2px; }
           <button class="hero" role="radio" data-hero="unicorn"><canvas width="180" height="160" aria-hidden="true"></canvas>Unicorn</button>
         </div>
         <p id="heroHello">Hi, I'm Pip! Let's find the rainbow doors and collect all the stars.</p>
-        <button class="pill" id="playBtn">Let's play!</button>
+        <button class="pill" id="playBtn" disabled>Let's play!</button>
       </div>
     </div>
 
@@ -230,113 +231,10 @@ button:focus-visible { outline: 4px solid var(--lilac); outline-offset: 2px; }
 
 <script>
 /*LEVELS-START*/
-// Map legend:
-//  #  wall          .  floor         P  Pip starts here    E  rainbow door (goal)
-//  *  star          a b c  keys (pink, purple, mint)        A B C  matching locked doors
-//  H  heart box (push it)            o  heart spot          G  gate (opens when every heart spot has a box)
-const LEVELS = [
-  {
-    name: "Hello, Friend!", fog: false,
-    hint: "Help {name} find the rainbow door! Grab the stars on the way.",
-    map: [
-      "#############",
-      "#P..#.....*.#",
-      "#.#.#.###.#.#",
-      "#.#...#*..#.#",
-      "#.#####.###.#",
-      "#*....#...#.#",
-      "#####.###.#.#",
-      "#.....#...#E#",
-      "#.#####.###.#",
-      "#*......#...#",
-      "#############",
-    ],
-  },
-  {
-    name: "The Pink Key", fog: false,
-    hint: "The rainbow door is behind a pink door. Find the pink key!",
-    map: [
-      "#############",
-      "#P....#*....#",
-      "#.###.#.###.#",
-      "#.#*..#...#.#",
-      "#.#.#####.#.#",
-      "#a#.....#.#*#",
-      "###.###.#.###",
-      "#*..#E#.#...#",
-      "#.###A#.###.#",
-      "#...........#",
-      "#############",
-    ],
-  },
-  {
-    name: "Heart Box", fog: false,
-    hint: "Push the heart box onto the heart spot. That opens the gate!",
-    map: [
-      "###########",
-      "#P...#...*#",
-      "#.##.#.##.#",
-      "#..H....o.#",
-      "#.#######.#",
-      "#*#..E..#.#",
-      "#.#.....#.#",
-      "#.###G###.#",
-      "#.........#",
-      "###########",
-    ],
-  },
-  {
-    name: "Rainbow Doors", fog: false,
-    hint: "Each door needs a key of the same color. Pink first, then purple!",
-    map: [
-      "#############",
-      "#P..#..*#..E#",
-      "#.#.#.#.#.###",
-      "#.#...#.B...#",
-      "#.###########",
-      "#...*#..#*..#",
-      "#.##.#.##.#.#",
-      "#a#..A....#b#",
-      "#.#.####.##.#",
-      "#*..#......*#",
-      "#############",
-    ],
-  },
-  {
-    name: "Misty Garden", fog: true,
-    hint: "It's misty! Walk around to clear the clouds. Find a key and a heart box.",
-    map: [
-      "#############",
-      "#P.#...*#.a.#",
-      "#..#.##.#.#.#",
-      "#.....#...#*#",
-      "###.#A#####.#",
-      "#*..#.H..o#.#",
-      "#.#########.#",
-      "#...#...*.#.#",
-      "#.#.#####.###",
-      "#.#..*....GE#",
-      "#############",
-    ],
-  },
-  {
-    name: "Castle Party", fog: true,
-    hint: "Castle party! Use all three keys and the heart box to reach the rainbow door.",
-    map: [
-      "#############",
-      "#P..#*...#c*#",
-      "#.#.#.#.##.##",
-      "#.#...#..B..#",
-      "#.###########",
-      "#a.*.#..*..b#",
-      "##.#.A.H.o..#",
-      "#*.#.#......#",
-      "####C########",
-      "#*.....G...E#",
-      "#############",
-    ],
-  },
-];
+// The hand-made levels live in levels/*.json (in the order listed in levels/index.json)
+// and are fetched when the game starts. Builds that can't fetch extra files (the Claude
+// Artifact) put them right here instead: python3 server.py --artifact out.html
+const INLINE_LEVELS = null;
 /*LEVELS-END*/
 
 (() => {
@@ -353,6 +251,7 @@ const LEVELS = [
   };
   const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const MOVE_MS = 120;
+  let LEVELS = [];
   const store = {
     get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
     set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
@@ -1520,8 +1419,25 @@ const LEVELS = [
   if (window.ResizeObserver) new ResizeObserver(resize).observe($("stage"));
 
   // ---------- boot ----------
+  async function fetchJson(url) {
+    const r = await fetch(url, { cache: "no-cache" });
+    if (!r.ok) throw new Error(`${url}: ${r.status}`);
+    return r.json();
+  }
+  async function loadLevels() {
+    if (INLINE_LEVELS) return INLINE_LEVELS;
+    const index = await fetchJson("levels/index.json");
+    return Promise.all(index.levels.map((f) => fetchJson("levels/" + f)));
+  }
   function start(data) {
+    loadLevels().then((levels) => { LEVELS = levels; begin(data); }, (err) => {
+      console.error("Couldn't load the levels", err);
+      $("hint").textContent = $("playBtn").textContent = "Oh no, the mazes didn't load. Please refresh the page to try again!";
+    });
+  }
+  function begin(data) {
     data = data || {};
+    $("playBtn").disabled = false;
     let first = typeof data.level === "number" ? data.level : 0;
     if (data.level == null) { for (let i = 0; i < LEVELS.length; i++) { if (!done.has(i)) { first = i; break; } } }
     if (data.hero && HEROES[data.hero]) pickHero(data.hero, false);

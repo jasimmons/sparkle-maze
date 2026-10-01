@@ -1,4 +1,6 @@
-// Checks every hand-made level in web/game.html:
+// Checks every hand-made level in web/levels/ (in the order of web/levels/index.json):
+//  0. Each level file is valid: a name, a hint, a fog flag, and a map using only known tiles,
+//     with one starting spot, a rainbow door, and a wall all the way around.
 //  1. Pip can reach the rainbow door (same rules as the game).
 //  2. Every star can be collected.
 //  3. Every locked door and gate is really needed (the level can't be beaten without it).
@@ -6,9 +8,33 @@
 const fs = require("fs");
 const path = require("path");
 
-const html = fs.readFileSync(path.join(__dirname, "..", "web", "game.html"), "utf8");
-const src = html.split("/*LEVELS-START*/")[1].split("/*LEVELS-END*/")[0];
-const LEVELS = new Function(src + "; return LEVELS;")();
+const DIR = path.join(__dirname, "..", "web", "levels");
+const readJson = (f) => {
+  try { return JSON.parse(fs.readFileSync(path.join(DIR, f), "utf8")); }
+  catch (e) { console.log(`FAIL ${f} -> ${e.message}`); process.exit(1); }
+};
+const FILES = readJson("index.json").levels;
+const LEVELS = FILES.map(readJson);
+const unlisted = fs.readdirSync(DIR).filter((f) => f.endsWith(".json") && f !== "index.json" && !FILES.includes(f));
+if (unlisted.length) { console.log(`FAIL not listed in levels/index.json: ${unlisted.join(", ")}`); process.exit(1); }
+
+function shapeErrors(L) {
+  const errs = [];
+  if (typeof L.name !== "string" || !L.name) errs.push("needs a name");
+  if (typeof L.hint !== "string" || !L.hint) errs.push("needs a hint");
+  if (typeof L.fog !== "boolean") errs.push("fog must be true or false");
+  if (!Array.isArray(L.map) || !L.map.length || !L.map.every((r) => typeof r === "string" && r.length)) return errs.concat("map must be a list of rows");
+  const W = L.map[0].length, H = L.map.length;
+  if (!L.map.every((r) => r.length === W)) errs.push("rows have different lengths");
+  const all = L.map.join("");
+  const bad = [...new Set(all.replace(/[#.PE*abcABCHoGT]/g, ""))];
+  if (bad.length) errs.push(`unknown map letters: ${bad.join(" ")}`);
+  if (all.split("P").length !== 2) errs.push("needs exactly one P");
+  if (!all.includes("E")) errs.push("needs a rainbow door E");
+  const edge = L.map[0] + L.map[H - 1] + L.map.map((r) => r[0] + r[r.length - 1]).join("");
+  if (/[^#]/.test(edge)) errs.push("outside edge must be all walls");
+  return errs;
+}
 
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 
@@ -61,9 +87,9 @@ function solve(map, goal) {
 const reachExit = (s, terr) => terr(s.x, s.y) === "E";
 let ok = true;
 LEVELS.forEach((L, i) => {
-  const errs = [];
+  const errs = shapeErrors(L);
+  if (errs.length) { console.log(`FAIL ${i + 1}. ${FILES[i]} -> ${errs.join("; ")}`); ok = false; return; }
   const H = L.map.length, W = L.map[0].length;
-  if (!L.map.every((r) => r.length === W)) errs.push("rows have different lengths");
   if (!solve(L.map, reachExit)) errs.push("rainbow door can't be reached");
   // each star collectable (on the way to a finish isn't required; just reachable)
   L.map.forEach((row, y) => [...row].forEach((c, x) => {
