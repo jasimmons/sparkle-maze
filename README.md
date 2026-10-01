@@ -11,6 +11,12 @@ mazes, then a "surprise maze" that is new every time.
 No installs needed: the server uses only the Python standard library. The whole
 game runs in the browser from `web/game.html`.
 
+## Play it online
+
+Every push to `main` publishes the game to GitHub Pages at
+https://jasimmons.github.io/sparkle-maze/ (see `.github/workflows/pages.yml`).
+To build the same static page yourself: `python3 server.py --build dist`.
+
 ## Controls
 
 - Arrow keys or WASD, the on-screen arrows, a swipe, or tap a tile to walk there
