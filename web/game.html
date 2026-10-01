@@ -193,7 +193,7 @@ button:focus-visible { outline: 4px solid var(--lilac); outline-offset: 2px; }
         <p id="chestText" hidden></p>
         <div class="row" id="chestAsk" hidden>
           <button class="pill" id="chestYes">Open it!</button>
-          <button class="pill ghost" id="chestNo">No thanks</button>
+          <button class="pill ghost" id="chestNo">Skip for now</button>
         </div>
         <button class="pill" id="chestOk" hidden>OK!</button>
       </div>
@@ -719,10 +719,12 @@ const INLINE_LEVELS = null;
     if (!openedDoor && !pushed) SFX.step();
 
     const item = s.items.get(nk);
-    if (item) {
+    if (item === "T") {
+      // The chest stays put until it's opened, so "Skip for now" leaves it here to come back to.
+      path = []; queued = null; setTimeout(openChest, MOVE_MS + 30);
+    } else if (item) {
       s.items.delete(nk);
       if (item === "*") { s.stars++; SFX.star(); sparkle(nx, ny, "#ffd46b", 16); }
-      else if (item === "T") { history = []; path = []; queued = null; setTimeout(openChest, MOVE_MS + 30); }
       else { s.keys.add(item); SFX.key(); sparkle(nx, ny, KEY_COLORS[item].fill, 16); }
     }
     reveal();
@@ -810,7 +812,7 @@ const INLINE_LEVELS = null;
     };
   }
 
-  // Stepping on a chest first asks whether to open it. "No thanks" makes it vanish without a roll.
+  // Stepping on a chest first asks whether to open it. "Skip for now" leaves it in place for later.
   function openChest() {
     if (won) return;
     chestOpen = true;
@@ -819,7 +821,7 @@ const INLINE_LEVELS = null;
     $("chestTitle").textContent = "A treasure chest!";
     $("chestIcon").className = "chest-icon float";
     $("chestIcon").innerHTML = CHEST_SVG;
-    $("chestText").textContent = "Do you want to open it? You might find stars, or a silly surprise!";
+    $("chestText").textContent = "Do you want to open it? You might find stars, or a silly surprise! You can skip it and come back later.";
     $("die").hidden = true; $("chestOk").hidden = true;
     $("chestIcon").hidden = false; $("chestText").hidden = false; $("chestAsk").hidden = false;
     $("chestScreen").hidden = false;
@@ -831,13 +833,14 @@ const INLINE_LEVELS = null;
     $("chestScreen").hidden = true;
     $("chestAsk").hidden = true;
     chestOpen = false;
-    sparkle(s.x, s.y, "#f5b3d4", 16);
     tone(660, 0.1, "sine", 0.06); tone(440, 0.14, "sine", 0.06, 0.08);
     try { canvas.focus({ preventScroll: true }); } catch (e) {}
   }
 
   function rollDice() {
     $("chestAsk").hidden = true;
+    s.items.delete(K(s.x, s.y));
+    history = [];   // no undoing a roll
     sparkle(s.x, s.y, "#ffd46b", 18);
     $("chestTitle").textContent = "Rolling...";
     $("chestIcon").hidden = true; $("chestText").hidden = true; $("chestOk").hidden = true;
@@ -1061,9 +1064,9 @@ const INLINE_LEVELS = null;
     }
     const ends = deadEnds(dist).sort(() => Math.random() - 0.5).slice(0, big ? 10 : 5);
     for (const k of ends) { const [x, y] = k.split(",").map(Number); g[y][x] = "*"; }
-    // Treasure chests: one in a small maze, 2 or 3 in a big one. Prefer spare dead ends, then any floor tile
+    // Treasure chests: one in a small maze, 2 to 5 in a big one. Prefer spare dead ends, then any floor tile
     // away from the start, and keep chests at least 6 steps apart (by grid distance) when there's room.
-    const chestCount = big ? 2 + Math.floor(Math.random() * 2) : 1;
+    const chestCount = big ? 2 + Math.floor(Math.random() * 4) : 1;
     const shuffle = (a) => a.sort(() => Math.random() - 0.5);
     const floorSpots = [...dist.keys()].filter((k) => { const [x, y] = k.split(",").map(Number); return g[y][x] === "." && dist.get(k) > 3; });
     const candidates = [...shuffle(deadEnds(dist)), ...shuffle(floorSpots)];
