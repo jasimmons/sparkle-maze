@@ -17,6 +17,16 @@ game runs in the browser from `web/game.html`.
 - Undo (Z or Backspace) and Restart (R)
 - The microphone button reads the level hint out loud for kids who don't read yet
 
+## Surprise maze
+
+The dice button makes a new random maze (Small 13x11 or Big 25x21) with one
+treasure chest. Opening it rolls a die: 1-3 finds that many stars, 4 is a
+tornado that carries you somewhere new, 5 is a sleepy ghost that takes your
+stars, and 6 is a trap door to a brand new maze (you keep stars and keys).
+
+Every level has a timer that starts on the first step, and the game remembers
+your best time for each level (and for each surprise maze size).
+
 ## Puzzle pieces
 
 | Map letter | What it is |
@@ -26,6 +36,7 @@ game runs in the browser from `web/game.html`.
 | `*` | Star to collect |
 | `a` `b` `c` / `A` `B` `C` | Pink, purple and mint keys and their doors |
 | `H` / `o` / `G` | Heart box, heart spot, and the gate the spots open |
+| `T` | Treasure chest: asks to open, then rolls a die for 1-3 stars, a tornado, a ghost or a trap door |
 
 Levels live between `/*LEVELS-START*/` and `/*LEVELS-END*/` in `web/game.html`.
 After editing one, run `node tools/check_levels.js` to make sure every level can

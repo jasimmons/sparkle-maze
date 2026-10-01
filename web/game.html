@@ -118,6 +118,21 @@ button:focus-visible { outline: 4px solid var(--lilac); outline-offset: 2px; }
 .hero[aria-checked="true"] { border-color: var(--berry); background: #ffd3e6; box-shadow: 0 4px 0 var(--berry-deep); }
 .hero:active { transform: translateY(3px); box-shadow: none; }
 .round.friend canvas { width: 40px; height: 40px; }
+.chip .best { display: flex; align-items: center; gap: 3px; font-size: 14px; color: var(--ink-soft); padding-left: 8px; border-left: 2px solid #f6dbe9; }
+.chip .best:empty { display: none; }
+.chip .best svg { width: 16px; height: 16px; }
+.card .time { font-size: 17px; color: var(--ink); }
+.die { width: 96px; height: 96px; }
+.die svg { width: 100%; height: 100%; display: block; }
+.die.rolling { animation: tumble 0.36s linear infinite; }
+.chest-icon { display: flex; gap: 6px; justify-content: center; align-items: center; min-height: 72px; }
+.chest-icon svg { width: 72px; height: 72px; }
+.chest-icon .bigstars svg { width: 48px; height: 48px; }
+.chest-icon.float svg { animation: float 1.6s ease-in-out infinite; }
+.chest-icon.spin svg { animation: sway 0.8s ease-in-out infinite; }
+@keyframes tumble { 0% { transform: rotate(0) translateY(0); } 25% { transform: rotate(90deg) translateY(-10px); } 50% { transform: rotate(180deg) translateY(0); } 75% { transform: rotate(270deg) translateY(-10px); } 100% { transform: rotate(360deg) translateY(0); } }
+@keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+@keyframes sway { 0%, 100% { transform: translateX(-6px) rotate(-6deg); } 50% { transform: translateX(6px) rotate(6deg); } }
 @keyframes pop { from { transform: scale(0.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
 @media (max-width: 560px) {
@@ -128,7 +143,7 @@ button:focus-visible { outline: 4px solid var(--lilac); outline-offset: 2px; }
   .pill { padding: 10px 12px; }
   .controls { gap: 6px; }
 }
-@media (prefers-reduced-motion: reduce) { .card { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .card, .die.rolling, .chest-icon.float svg, .chest-icon.spin svg { animation: none; } }
 </style>
 
 <main class="app">
@@ -137,6 +152,7 @@ button:focus-visible { outline: 4px solid var(--lilac); outline-offset: 2px; }
     <nav class="levels" id="levels" aria-label="Choose a level"></nav>
     <div class="hud">
       <div class="chip" aria-label="Stars found"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6 6.6.8-4.9 4.5 1.3 6.5L12 17.1l-5.9 3.2 1.3-6.5L2.5 9.3l6.6-.8z" fill="#ffd46b" stroke="#e9a93a" stroke-width="1.5" stroke-linejoin="round"/></svg><span id="starCount">0/0</span></div>
+      <div class="chip" aria-label="Time"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8.5" fill="#fff" stroke="#b79ae8" stroke-width="2"/><path d="M12 8.5V13l3 2" stroke="#7356c9" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M9.5 2.5h5" stroke="#b79ae8" stroke-width="2" stroke-linecap="round"/></svg><span id="timeNow">0:00</span><span class="best" id="timeBest" title="Your best time"></span></div>
       <div class="chip keys" id="keys" aria-label="Keys you are carrying"></div>
       <button class="round friend" id="friendBtn" aria-label="Change your friend" title="Change your friend"><canvas id="friendCanvas" width="88" height="88" aria-hidden="true"></canvas></button>
       <button class="round" id="soundBtn" aria-pressed="true" aria-label="Sound on or off" title="Sound">
@@ -168,11 +184,26 @@ button:focus-visible { outline: 4px solid var(--lilac); outline-offset: 2px; }
       </div>
     </div>
 
+    <div class="overlay" id="chestScreen" hidden>
+      <div class="card">
+        <h2 id="chestTitle">Rolling...</h2>
+        <div class="die" id="die" aria-hidden="true"></div>
+        <div class="chest-icon" id="chestIcon" hidden></div>
+        <p id="chestText" hidden></p>
+        <div class="row" id="chestAsk" hidden>
+          <button class="pill" id="chestYes">Open it!</button>
+          <button class="pill ghost" id="chestNo">No thanks</button>
+        </div>
+        <button class="pill" id="chestOk" hidden>OK!</button>
+      </div>
+    </div>
+
     <div class="overlay" id="winScreen" hidden>
       <div class="card">
         <h2 id="winTitle">Hooray!</h2>
         <div class="bigstars" id="winStars"></div>
         <p id="winText">You found the rainbow door!</p>
+        <p class="time" id="winTime"></p>
         <div class="row">
           <button class="pill" id="nextBtn">Next maze</button>
           <button class="pill ghost" id="againBtn">Play again</button>
@@ -633,6 +664,16 @@ const LEVELS = [
   let started = false;
   let bigMaze = store.get("pip.bigMaze", false);
   let surprise = null;   // the current surprise maze, kept so Restart replays it
+  let chestOpen = false;
+  let bests = store.get("pip.bests", {});
+  // The timer starts on the first step, pauses behind the chest and win cards, and resumes on the next step.
+  let timer = { acc: 0, since: null };
+  const timerStart = () => { if (timer.since == null) timer.since = performance.now(); };
+  const timerPause = () => { if (timer.since != null) { timer.acc += performance.now() - timer.since; timer.since = null; } };
+  const elapsed = () => timer.acc + (timer.since != null ? performance.now() - timer.since : 0);
+  const fmtTime = (ms) => { const t = Math.floor(ms / 1000); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`; };
+  const bestKey = () => (levelIndex >= 0 ? "L" + (levelIndex + 1) : "surprise-" + (bigMaze ? "big" : "small"));
+  const totalStars = () => level.totalStars + s.bonus;
 
   function parse(def) {
     const rows = def.map;
@@ -646,7 +687,7 @@ const LEVELS = [
       for (let x = 0; x < W; x++) {
         const ch = rows[y][x] || "#";
         if (ch === "P") { px = x; py = y; row.push("."); }
-        else if (ch === "*" || ch === "a" || ch === "b" || ch === "c") { items.set(K(x, y), ch); if (ch === "*") stars++; row.push("."); }
+        else if (ch === "*" || ch === "a" || ch === "b" || ch === "c" || ch === "T") { items.set(K(x, y), ch); if (ch === "*") stars++; row.push("."); }
         else if (ch === "H") { blocks.add(K(x, y)); row.push("."); }
         else row.push(ch);
       }
@@ -666,16 +707,17 @@ const LEVELS = [
       open: new Set(),
       gateOpen: level.pads.length === 0,
       stars: 0,
+      bonus: 0,          // extra stars beyond the map's own: chest prizes, or stars carried through a trap door
       revealed: new Set(),
     };
   }
   function snapshot() {
-    return { x: s.x, y: s.y, dir: s.dir, items: [...s.items], blocks: [...s.blocks], keys: [...s.keys], open: [...s.open], gateOpen: s.gateOpen, stars: s.stars };
+    return { x: s.x, y: s.y, dir: s.dir, items: [...s.items], blocks: [...s.blocks], keys: [...s.keys], open: [...s.open], gateOpen: s.gateOpen, stars: s.stars, bonus: s.bonus };
   }
   function restoreSnap(h) {
     s.x = h.x; s.y = h.y; s.dir = h.dir;
     s.items = new Map(h.items); s.blocks = new Set(h.blocks); s.keys = new Set(h.keys); s.open = new Set(h.open);
-    s.gateOpen = h.gateOpen; s.stars = h.stars;
+    s.gateOpen = h.gateOpen; s.stars = h.stars; s.bonus = h.bonus;
   }
 
   function reveal() {
@@ -693,6 +735,7 @@ const LEVELS = [
     level = parse(def);
     s = freshState();
     history = []; anim = null; queued = null; path = []; won = false; particles = [];
+    if (!opts.keepRun) timer = { acc: 0, since: null };
     reveal();
     $("hint").textContent = hintText(def);
     $("winScreen").hidden = true;
@@ -739,7 +782,7 @@ const LEVELS = [
   }
 
   function step(dirName) {
-    if (won || !s) return false;
+    if (won || !s || chestOpen) return false;
     const [dx, dy] = DIRS[dirName];
     s.dir = dirName;
     const nx = s.x + dx, ny = s.y + dy, nk = K(nx, ny);
@@ -773,12 +816,14 @@ const LEVELS = [
     }
     anim = { fromX: s.x, fromY: s.y, t0: performance.now(), block: pushed };
     s.x = nx; s.y = ny;
+    timerStart();
     if (!openedDoor && !pushed) SFX.step();
 
     const item = s.items.get(nk);
     if (item) {
       s.items.delete(nk);
       if (item === "*") { s.stars++; SFX.star(); sparkle(nx, ny, "#ffd46b", 16); }
+      else if (item === "T") { history = []; path = []; queued = null; setTimeout(openChest, MOVE_MS + 30); }
       else { s.keys.add(item); SFX.key(); sparkle(nx, ny, KEY_COLORS[item].fill, 16); }
     }
     reveal();
@@ -786,6 +831,7 @@ const LEVELS = [
 
     if (t === "E") {
       won = true; path = []; queued = null;
+      timerPause();
       setTimeout(celebrate, 260);
     }
     return true;
@@ -800,7 +846,7 @@ const LEVELS = [
 
   // Tap-to-walk: breadth-first search over tiles Pip can stand on.
   function walkTo(tx, ty) {
-    if (won) return;
+    if (won || chestOpen) return;
     if (tx === s.x && ty === s.y) return;
     // Tapping right next to Pip always tries a step (so taps can push boxes and open doors).
     const adx = tx - s.x, ady = ty - s.y;
@@ -828,17 +874,156 @@ const LEVELS = [
   }
 
   function tryMove(dirName) {
-    if (!started || won) return;
+    if (!started || won || chestOpen) return;
     if (anim && performance.now() - anim.t0 < MOVE_MS) { queued = dirName; return; }
     step(dirName);
   }
+
+  // ---------- treasure chest ----------
+  const PIPS = { 1: [[50, 50]], 2: [[28, 28], [72, 72]], 3: [[26, 26], [50, 50], [74, 74]], 4: [[28, 28], [72, 28], [28, 72], [72, 72]], 5: [[26, 26], [74, 26], [50, 50], [26, 74], [74, 74]], 6: [[28, 24], [72, 24], [28, 50], [72, 50], [28, 76], [72, 76]] };
+  const dieSvg = (n) => `<svg viewBox="0 0 100 100"><rect x="5" y="5" width="90" height="90" rx="20" fill="#fff" stroke="#e45d9c" stroke-width="5"/>${PIPS[n].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="9" fill="${n === 1 ? "#ff5fa2" : "#7356c9"}"/>`).join("")}</svg>`;
+  const GHOST_SVG = '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M12 56V30a20 20 0 0 1 40 0v26l-6.7-5-6.6 5-6.7-5-6.6 5-6.7-5z" fill="#fff" stroke="#c9b3e6" stroke-width="2.5" stroke-linejoin="round"/><path d="M38 12l6-4v8zM50 12l-6-4v8z" fill="#ff7eb6"/><circle cx="44" cy="12" r="2" fill="#d63f84"/><ellipse cx="25" cy="30" rx="3" ry="4" fill="#4a2347"/><ellipse cx="39" cy="30" rx="3" ry="4" fill="#4a2347"/><ellipse cx="19.5" cy="38" rx="4" ry="2.5" fill="#ffb3d1"/><ellipse cx="44.5" cy="38" rx="4" ry="2.5" fill="#ffb3d1"/><path d="M28 39q4 4 8 0" stroke="#4a2347" stroke-width="2.2" fill="none" stroke-linecap="round"/></svg>';
+  const CHEST_SVG = '<svg viewBox="0 0 64 64" aria-hidden="true"><ellipse cx="32" cy="56" rx="24" ry="4" fill="rgba(120,60,120,.15)"/><rect x="8" y="28" width="48" height="26" rx="5" fill="#e690bd" stroke="#a8507f" stroke-width="3"/><rect x="8" y="12" width="48" height="20" rx="10" fill="#f5b3d4" stroke="#a8507f" stroke-width="3"/><rect x="15" y="13" width="6" height="40" fill="#ffd46b"/><rect x="43" y="13" width="6" height="40" fill="#ffd46b"/><path d="M32 40c-7-5-8-11-3.5-12.5 2-.7 3.5.6 3.5 2 0-1.4 1.5-2.7 3.5-2 4.5 1.5 3.5 7.5-3.5 12.5z" fill="#ffd46b" stroke="#e9a93a" stroke-width="1.5"/><path d="M56 6l1.5 3.5L61 11l-3.5 1.5L56 16l-1.5-3.5L51 11l3.5-1.5z" fill="#ffd46b"/></svg>';
+  const TORNADO_SVG = '<svg viewBox="0 0 64 64" aria-hidden="true" fill="none" stroke-linecap="round" stroke-width="5"><path d="M8 12h48" stroke="#b79ae8"/><path d="M13 22h36" stroke="#a98bf0"/><path d="M18 32h26" stroke="#8fc8ff"/><path d="M24 42h16" stroke="#8fe0c0"/><path d="M28 52h8" stroke="#ff8fb1"/><circle cx="50" cy="44" r="3" fill="#ffd46b" stroke="none"/><circle cx="12" cy="36" r="2.5" fill="#ff7eb6" stroke="none"/></svg>';
+  const TRAPDOOR_SVG = '<svg viewBox="0 0 64 64" aria-hidden="true"><rect x="8" y="14" width="48" height="40" rx="8" fill="#e690bd" stroke="#a8507f" stroke-width="3"/><path d="M8 34h48M32 14v40" stroke="#a8507f" stroke-width="2.5"/><circle cx="32" cy="34" r="11" fill="#5b2a59"/><path d="M27 31l5 6 5-6" stroke="#ffd46b" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+  function chestOutcome(n) {
+    const name = hero().name;
+    if (n <= 3) return {
+      title: n === 1 ? "A star!" : `${n} stars!`, icon: `<div class="bigstars">${Array.from({ length: n }, () => bigStar(true)).join("")}</div>`, cls: "",
+      text: `${name} found ${n === 1 ? "a shiny star" : n + " shiny stars"} in the chest!`, say: `Yay! ${n === 1 ? "One star" : n + " stars"}!`,
+      apply: () => { s.stars += n; s.bonus += n; SFX.star(); sparkle(s.x, s.y, "#ffd46b", 24); },
+    };
+    if (n === 4) return {
+      title: "Whoosh!", icon: TORNADO_SVG, cls: "spin",
+      text: `A friendly tornado! It will carry ${name} somewhere new in the maze.`, say: `Whoosh! A tornado!`,
+      apply: tornado,
+    };
+    if (n === 5) return {
+      title: "Boo!", icon: GHOST_SVG, cls: "float",
+      text: `A sleepy little ghost borrowed all your stars. It says sorry and gives ${name} a hug!`, say: "Boo! A sleepy ghost took your stars. Sorry!",
+      apply: () => { s.stars = 0; [330, 294, 262].forEach((f, i) => tone(f, 0.3, "sine", 0.1, i * 0.18)); },
+    };
+    return {
+      title: "Trap door!", icon: TRAPDOOR_SVG, cls: "",
+      text: `Down ${name} goes to a brand new maze! You keep your stars and keys.`, say: "Oops! A trap door! Here's a brand new maze.",
+      apply: trapDoor,
+    };
+  }
+
+  // Stepping on a chest first asks whether to open it. "No thanks" makes it vanish without a roll.
+  function openChest() {
+    if (won) return;
+    chestOpen = true;
+    timerPause();
+    [523, 659, 784].forEach((f, i) => tone(f, 0.12, "triangle", 0.08, i * 0.05));
+    $("chestTitle").textContent = "A treasure chest!";
+    $("chestIcon").className = "chest-icon float";
+    $("chestIcon").innerHTML = CHEST_SVG;
+    $("chestText").textContent = "Do you want to open it? You might find stars, or a silly surprise!";
+    $("die").hidden = true; $("chestOk").hidden = true;
+    $("chestIcon").hidden = false; $("chestText").hidden = false; $("chestAsk").hidden = false;
+    $("chestScreen").hidden = false;
+    try { $("chestYes").focus({ preventScroll: true }); } catch (e) {}
+    say("A treasure chest! Do you want to open it?");
+  }
+
+  function skipChest() {
+    $("chestScreen").hidden = true;
+    $("chestAsk").hidden = true;
+    chestOpen = false;
+    sparkle(s.x, s.y, "#f5b3d4", 16);
+    tone(660, 0.1, "sine", 0.06); tone(440, 0.14, "sine", 0.06, 0.08);
+    try { canvas.focus({ preventScroll: true }); } catch (e) {}
+  }
+
+  function rollDice() {
+    $("chestAsk").hidden = true;
+    sparkle(s.x, s.y, "#ffd46b", 18);
+    $("chestTitle").textContent = "Rolling...";
+    $("chestIcon").hidden = true; $("chestText").hidden = true; $("chestOk").hidden = true;
+    const die = $("die");
+    die.hidden = false; die.classList.add("rolling");
+    $("chestScreen").hidden = false;
+    const final = 1 + Math.floor(Math.random() * 6);
+    let face = 1, ticks = 0;
+    const spin = setInterval(() => {
+      face = 1 + ((face + Math.floor(Math.random() * 5)) % 6);
+      die.innerHTML = dieSvg(face);
+      tone(800 + Math.random() * 300, 0.03, "square", 0.025);
+      if (++ticks >= (reduceMotion ? 3 : 14)) {
+        clearInterval(spin);
+        die.classList.remove("rolling");
+        die.innerHTML = dieSvg(final);
+        tone(1046, 0.15, "triangle", 0.1);
+        setTimeout(() => showOutcome(final), 450);
+      }
+    }, 90);
+    die.innerHTML = dieSvg(face);
+  }
+
+  let pendingOutcome = null;
+  function showOutcome(n) {
+    const o = chestOutcome(n);
+    pendingOutcome = o;
+    $("chestTitle").textContent = o.title;
+    $("chestIcon").className = "chest-icon " + o.cls;
+    $("chestIcon").innerHTML = o.icon;
+    $("chestText").textContent = o.text;
+    $("die").hidden = true;
+    $("chestIcon").hidden = false; $("chestText").hidden = false; $("chestOk").hidden = false;
+    try { $("chestOk").focus({ preventScroll: true }); } catch (e) {}
+    say(o.say);
+  }
+
+  function closeChest() {
+    if (!pendingOutcome) return;
+    const o = pendingOutcome;
+    pendingOutcome = null;
+    $("chestScreen").hidden = true;
+    chestOpen = false;
+    o.apply();
+    updateHud();
+    try { canvas.focus({ preventScroll: true }); } catch (e) {}
+  }
+
+  function tornado() {
+    const spots = [];
+    for (let y = 0; y < level.H; y++) for (let x = 0; x < level.W; x++) {
+      if (level.terrain[y][x] !== "." || s.items.has(K(x, y)) || s.blocks.has(K(x, y))) continue;
+      spots.push([x, y, Math.abs(x - s.x) + Math.abs(y - s.y)]);
+    }
+    const far = spots.filter((p) => p[2] >= 6);
+    const pool = far.length ? far : spots;
+    if (!pool.length) return;
+    sparkle(s.x, s.y, "#b79ae8", 20);
+    const [x, y] = pool[Math.floor(Math.random() * pool.length)];
+    s.x = x; s.y = y; anim = null;
+    reveal();
+    sparkle(x, y, "#8fc8ff", 24);
+    [880, 740, 620, 520, 440].forEach((f, i) => tone(f, 0.12, "sine", 0.07, i * 0.05));
+  }
+
+  function trapDoor() {
+    const carry = { stars: s.stars, keys: new Set(s.keys) };
+    [523, 440, 349, 262].forEach((f, i) => tone(f, 0.16, "triangle", 0.09, i * 0.09));
+    surprise = makeSurpriseMaze(bigMaze);
+    loadLevel(-1, { keepRun: true });
+    s.stars = carry.stars; s.bonus = carry.stars; s.keys = carry.keys;
+    updateHud();
+  }
+  $("chestOk").onclick = closeChest;
+  $("chestYes").onclick = rollDice;
+  $("chestNo").onclick = skipChest;
 
   // ---------- HUD ----------
   const keySvg = (c) => `<svg viewBox="0 0 24 24" aria-label="${KEY_COLORS[c].name} key"><g transform="rotate(-35 12 12)"><path d="M7 7.5c-2.4-2.6-6 .2-3.6 3.2L7 14l3.6-3.3C13 7.7 9.4 4.9 7 7.5z" fill="${KEY_COLORS[c].fill}" stroke="${KEY_COLORS[c].dark}" stroke-width="1.4"/><rect x="9" y="9.6" width="12" height="2.8" rx="1.2" fill="${KEY_COLORS[c].fill}" stroke="${KEY_COLORS[c].dark}" stroke-width="1.2"/><rect x="17" y="11.6" width="2.4" height="3.6" rx=".8" fill="${KEY_COLORS[c].fill}" stroke="${KEY_COLORS[c].dark}" stroke-width="1.2"/></g></svg>`;
   const bigStar = (on) => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6 6.6.8-4.9 4.5 1.3 6.5L12 17.1l-5.9 3.2 1.3-6.5L2.5 9.3l6.6-.8z" fill="${on ? "#ffd46b" : "#f3e3ee"}" stroke="${on ? "#e9a93a" : "#e2c6d8"}" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
 
   function updateHud() {
-    $("starCount").textContent = `${s.stars}/${level.totalStars}`;
+    $("starCount").textContent = `${s.stars}/${totalStars()}`;
+    const b = bests[bestKey()];
+    $("timeBest").innerHTML = b ? `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8l4 3 4-6 4 6 4-3-2 10H6z" fill="#ffd46b" stroke="#e9a93a" stroke-width="1.5" stroke-linejoin="round"/></svg>${fmtTime(b)}` : "";
     $("keys").innerHTML = [...s.keys].sort().map(keySvg).join("");
   }
   function renderLevelButtons() {
@@ -885,8 +1070,13 @@ const LEVELS = [
     SFX.win();
     if (levelIndex >= 0) { done.add(levelIndex); store.set("pip.done", [...done]); }
     renderLevelButtons();
-    const total = level.totalStars;
+    const total = totalStars();
     const got = s.stars;
+    const ms = elapsed(), key = bestKey(), prev = bests[key];
+    const newBest = prev == null || ms < prev;
+    if (newBest) { bests[key] = ms; store.set("pip.bests", bests); }
+    $("winTime").textContent = prev == null ? `Your time: ${fmtTime(ms)}. That's your first best time!` : newBest ? `Your time: ${fmtTime(ms)}. A new best time!` : `Your time: ${fmtTime(ms)}. Your best is ${fmtTime(prev)}.`;
+    updateHud();
     let shown = total <= 5 ? total : 5;
     const lit = total ? Math.round((got / total) * shown) : 0;
     $("winStars").innerHTML = Array.from({ length: shown }, (_, i) => bigStar(i < lit)).join("");
@@ -896,7 +1086,7 @@ const LEVELS = [
     const last = levelIndex === LEVELS.length - 1;
     $("nextBtn").textContent = levelIndex === -1 || last ? "New surprise maze" : "Next maze";
     $("winScreen").hidden = false;
-    say(all && total ? "Sparkly! You found every star!" : "Hooray! You did it!");
+    say((all && total ? "Sparkly! You found every star!" : "Hooray! You did it!") + (newBest && prev != null ? " And a new best time!" : ""));
     for (let i = 0; i < 70; i++) {
       particles.push({
         x: Math.random() * level.W * tile, y: -Math.random() * tile * 3,
@@ -972,8 +1162,12 @@ const LEVELS = [
     }
     const ends = deadEnds(dist).sort(() => Math.random() - 0.5).slice(0, big ? 10 : 5);
     for (const k of ends) { const [x, y] = k.split(",").map(Number); g[y][x] = "*"; }
+    // one treasure chest: a spare dead end if there is one, otherwise any floor tile away from the start
+    let chestSpots = deadEnds(dist);
+    if (!chestSpots.length) chestSpots = [...dist.keys()].filter((k) => { const [x, y] = k.split(",").map(Number); return g[y][x] === "." && dist.get(k) > 3; });
+    if (chestSpots.length) { const [x, y] = chestSpots[Math.floor(Math.random() * chestSpots.length)].split(",").map(Number); g[y][x] = "T"; }
     g[1][1] = "P";
-    return { name: "Surprise maze", fog: true, hint: "A surprise maze! Walk through the clouds to find the rainbow door.", map: g.map((r) => r.join("")) };
+    return { name: "Surprise maze", fog: true, hint: "A surprise maze! Find the rainbow door. There's a treasure chest hiding somewhere too!", map: g.map((r) => r.join("")) };
   }
 
   // ---------- rendering ----------
@@ -1100,6 +1294,22 @@ const LEVELS = [
     ctx.fillStyle = "#4a2347";
     ctx.beginPath(); ctx.arc(cx - tile * 0.06, cy - tile * 0.01, tile * 0.025, 0, Math.PI * 2); ctx.arc(cx + tile * 0.06, cy - tile * 0.01, tile * 0.025, 0, Math.PI * 2); ctx.fill();
   }
+  function drawChest(x, y, t) {
+    const bob = reduceMotion ? 0 : Math.sin(t / 400 + x) * tile * 0.025;
+    const cx = (x + 0.5) * tile, top = y * tile + tile * 0.26 + bob, w = tile * 0.72, h = tile * 0.52, lx = cx - w / 2;
+    ctx.fillStyle = "rgba(120, 60, 120, 0.15)";
+    ctx.beginPath(); ctx.ellipse(cx, y * tile + tile * 0.86, w * 0.5, tile * 0.07, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.lineWidth = Math.max(1.5, tile * 0.04); ctx.strokeStyle = "#a8507f";
+    ctx.fillStyle = "#e690bd"; rrect(ctx, lx, top + h * 0.38, w, h * 0.62, tile * 0.08); ctx.fill(); ctx.stroke();   // box
+    ctx.fillStyle = "#f5b3d4"; rrect(ctx, lx, top, w, h * 0.45, tile * 0.16); ctx.fill(); ctx.stroke();               // lid
+    ctx.fillStyle = "#ffd46b";
+    ctx.fillRect(lx + w * 0.14, top + h * 0.05, w * 0.1, h * 0.9); ctx.fillRect(lx + w * 0.76, top + h * 0.05, w * 0.1, h * 0.9);
+    heartPath(ctx, cx, top + h * 0.48, tile * 0.2); ctx.fill();
+    ctx.strokeStyle = "#e9a93a"; ctx.lineWidth = Math.max(1, tile * 0.025); ctx.stroke();
+    const tw = reduceMotion ? 0.8 : Math.max(0, Math.sin(t / 300 + y));
+    ctx.fillStyle = `rgba(255, 220, 110, ${tw})`;
+    starPath(ctx, lx + w * 0.95, top - tile * 0.04, tile * 0.07, t / 700); ctx.fill();
+  }
   function drawFog(x, y, t) {
     const px = x * tile, py = y * tile;
     ctx.fillStyle = "#eadcf6";
@@ -1114,9 +1324,12 @@ const LEVELS = [
 
   function ease(p) { return 1 - Math.pow(1 - p, 3); }
 
+  let shownTime = "";
   function frame(now) {
     requestAnimationFrame(frame);
     if (!level) return;
+    const tt = fmtTime(elapsed());
+    if (tt !== shownTime) { shownTime = tt; $("timeNow").textContent = tt; }
     // advance animations and queued moves
     if (anim && now - anim.t0 >= MOVE_MS) {
       anim = null;
@@ -1145,6 +1358,7 @@ const LEVELS = [
     for (const [k, it] of s.items) {
       const [x, y] = k.split(",").map(Number);
       if (it === "*") drawStarItem(x, y, now);
+      else if (it === "T") drawChest(x, y, now);
       else drawKey(ctx, (x + 0.5) * tile, (y + 0.5) * tile, tile, KEY_COLORS[it], now);
     }
     // boxes
@@ -1216,6 +1430,7 @@ const LEVELS = [
   document.querySelectorAll(".hero").forEach((b) => b.addEventListener("click", () => pickHero(b.dataset.hero, true)));
   $("friendBtn").addEventListener("click", () => {
     started = false; path = []; queued = null;
+    timerPause();
     $("startScreen").hidden = false;
     try { document.querySelector('.hero[aria-checked="true"]').focus(); } catch (e) {}
   });
@@ -1237,6 +1452,16 @@ const LEVELS = [
   window.addEventListener("keydown", (e) => {
     if (!started) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("playBtn").click(); } return; }
     if (!$("winScreen").hidden && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); $("nextBtn").click(); return; }
+    if (chestOpen) {
+      const ask = !$("chestAsk").hidden;
+      if (ask && e.key === "Escape") { e.preventDefault(); skipChest(); }
+      else if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        if (ask) (document.activeElement === $("chestNo") ? skipChest : rollDice)();
+        else if (!$("chestOk").hidden) closeChest();
+      }
+      return;
+    }
     const d = KEYMAP[e.key];
     if (d) { e.preventDefault(); path = []; tryMove(d); return; }
     if (e.key === "z" || e.key === "Z" || e.key === "Backspace") { e.preventDefault(); undo(); }
