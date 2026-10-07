@@ -131,6 +131,23 @@ button:focus-visible { outline: 4px solid var(--lilac); outline-offset: 2px; }
 .chest-icon .bigstars svg { width: 48px; height: 48px; }
 .chest-icon.float svg { animation: float 1.6s ease-in-out infinite; }
 .chest-icon.spin svg { animation: sway 0.8s ease-in-out infinite; }
+.chip.account { border: 0; cursor: pointer; font-family: var(--body); color: var(--ink); gap: 5px; padding: 4px 12px 4px 4px; }
+.chip.account .lbl { font-size: 16px; padding-left: 2px; }
+.avatar { width: 30px; height: 30px; border-radius: 50%; flex: none; display: grid; place-items: center; background: var(--lilac); color: #fff; font-size: 16px; object-fit: cover; }
+.card.scroll { max-height: 100%; overflow-y: auto; }
+.card a.pill { text-decoration: none; }
+.card .linkish { border: 0; background: none; font: inherit; font-weight: 800; font-size: 17px; color: var(--berry-deep); text-decoration: underline; cursor: pointer; padding: 0; }
+.card .saved { font-size: 16px; color: var(--ink); }
+.scores { border-collapse: collapse; width: 100%; font-weight: 800; font-size: 16px; font-variant-numeric: tabular-nums; }
+.scores th { font-size: 13px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .5px; padding: 0 6px 4px; }
+.scores td { padding: 5px 6px; border-top: 2px solid #f6dbe9; }
+.scores th:first-child, .scores td:first-child { text-align: left; }
+.scores .none { color: #c9a9c4; }
+.card h3 { font-family: var(--display); font-weight: 800; font-size: 22px; margin: 4px 0 0; color: var(--berry-deep); }
+.topstars { list-style: none; margin: 0; padding: 0; width: 100%; display: flex; flex-direction: column; gap: 6px; font-weight: 800; }
+.topstars li { display: flex; align-items: center; gap: 8px; }
+.topstars .who { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topstars svg, .chip.account svg { width: 20px; height: 20px; }
 @keyframes tumble { 0% { transform: rotate(0) translateY(0); } 25% { transform: rotate(90deg) translateY(-10px); } 50% { transform: rotate(180deg) translateY(0); } 75% { transform: rotate(270deg) translateY(-10px); } 100% { transform: rotate(360deg) translateY(0); } }
 @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
 @keyframes sway { 0%, 100% { transform: translateX(-6px) rotate(-6deg); } 50% { transform: translateX(6px) rotate(6deg); } }
@@ -155,6 +172,7 @@ button:focus-visible { outline: 4px solid var(--lilac); outline-offset: 2px; }
       <div class="chip" aria-label="Stars found"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6 6.6.8-4.9 4.5 1.3 6.5L12 17.1l-5.9 3.2 1.3-6.5L2.5 9.3l6.6-.8z" fill="#ffd46b" stroke="#e9a93a" stroke-width="1.5" stroke-linejoin="round"/></svg><span id="starCount">0/0</span></div>
       <div class="chip" aria-label="Time"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8.5" fill="#fff" stroke="#b79ae8" stroke-width="2"/><path d="M12 8.5V13l3 2" stroke="#7356c9" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M9.5 2.5h5" stroke="#b79ae8" stroke-width="2" stroke-linecap="round"/></svg><span id="timeNow">0:00</span><span class="best" id="timeBest" title="Your best time"></span></div>
       <div class="chip keys" id="keys" aria-label="Keys you are carrying"></div>
+      <button class="chip account" id="accountBtn" hidden aria-label="Your scores and account" title="Your scores"></button>
       <button class="round friend" id="friendBtn" aria-label="Change your friend" title="Change your friend"><canvas id="friendCanvas" width="88" height="88" aria-hidden="true"></canvas></button>
       <button class="round" id="soundBtn" aria-pressed="true" aria-label="Sound on or off" title="Sound">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/><path id="soundWaves" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round"/></svg>
@@ -205,9 +223,26 @@ button:focus-visible { outline: 4px solid var(--lilac); outline-offset: 2px; }
         <div class="bigstars" id="winStars"></div>
         <p id="winText">You found the rainbow door!</p>
         <p class="time" id="winTime"></p>
+        <p class="saved" id="winSaved" hidden></p>
+        <button class="linkish" id="winSignIn" hidden>Sign in to save your scores</button>
         <div class="row">
           <button class="pill" id="nextBtn">Next maze</button>
           <button class="pill ghost" id="againBtn">Play again</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="overlay" id="accountScreen" hidden>
+      <div class="card scroll" role="dialog" aria-labelledby="accountTitle">
+        <h2 id="accountTitle">Your scores</h2>
+        <p id="accountText"></p>
+        <div class="row" id="accountProviders"></div>
+        <table class="scores" id="accountScores" hidden></table>
+        <h3 id="topTitle" hidden>Top star finders</h3>
+        <ol class="topstars" id="topStars" hidden></ol>
+        <div class="row">
+          <button class="pill ghost" id="signOutBtn" hidden>Sign out</button>
+          <button class="pill" id="accountClose">Close</button>
         </div>
       </div>
     </div>
@@ -775,7 +810,7 @@ const INLINE_LEVELS = null;
   }
 
   function tryMove(dirName) {
-    if (!started || won || chestOpen) return;
+    if (!started || won || chestOpen || accountOpen) return;
     if (anim && performance.now() - anim.t0 < MOVE_MS) { queued = dirName; return; }
     step(dirName);
   }
@@ -977,6 +1012,7 @@ const INLINE_LEVELS = null;
     const ms = elapsed(), key = bestKey(), prev = bests[key];
     const newBest = prev == null || ms < prev;
     if (newBest) { bests[key] = ms; store.set("pip.bests", bests); }
+    saveFinish(got, ms);
     $("winTime").textContent = prev == null ? `Your time: ${fmtTime(ms)}. That's your first best time!` : newBest ? `Your time: ${fmtTime(ms)}. A new best time!` : `Your time: ${fmtTime(ms)}. Your best is ${fmtTime(prev)}.`;
     updateHud();
     let shown = total <= 5 ? total : 5;
@@ -1364,6 +1400,7 @@ const INLINE_LEVELS = null;
   });
   const KEYMAP = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", w: "up", s: "down", a: "left", d: "right", W: "up", S: "down", A: "left", D: "right" };
   window.addEventListener("keydown", (e) => {
+    if (accountOpen) { if (e.key === "Escape") { e.preventDefault(); closeAccount(); } return; }
     if (!started) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("playBtn").click(); } return; }
     if (!$("winScreen").hidden && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); $("nextBtn").click(); return; }
     if (chestOpen) {
@@ -1433,6 +1470,119 @@ const INLINE_LEVELS = null;
   window.addEventListener("resize", resize);
   if (window.ResizeObserver) new ResizeObserver(resize).observe($("stage"));
 
+  // ---------- accounts ----------
+  // Only when the game is served by the backend (docker compose up, see backend/). On GitHub Pages
+  // and in the Artifact there is no api/, so the account button stays hidden and nothing changes.
+  const account = { on: false, user: null, providers: [] };
+  let accountOpen = false;
+  const STAR_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6 6.6.8-4.9 4.5 1.3 6.5L12 17.1l-5.9 3.2 1.3-6.5L2.5 9.3l6.6-.8z" fill="#ffd46b" stroke="#e9a93a" stroke-width="1.5" stroke-linejoin="round"/></svg>';
+  const PERSON_ICON = '<span class="avatar"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="9" r="4" fill="#fff"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0z" fill="#fff"/></svg></span>';
+  const esc = (v) => String(v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  const avatar = (u) => (u.avatar_url ? `<img class="avatar" src="${esc(u.avatar_url)}" alt="" referrerpolicy="no-referrer">` : `<span class="avatar">${esc((u.name || "?").slice(0, 1).toUpperCase())}</span>`);
+  const starsWord = (n) => (n === 1 ? "1 star" : `${n} stars`);
+  const scoreKey = () => (levelIndex >= 0 ? LEVELS[levelIndex].id : "surprise-" + (bigMaze ? "big" : "small"));
+
+  async function api(path, opts = {}) {
+    const r = await fetch("api/" + path, { credentials: "same-origin", cache: "no-store", ...opts, headers: { "Content-Type": "application/json" } });
+    if (!r.ok) { const err = new Error(`api/${path}: ${r.status}`); err.status = r.status; throw err; }
+    return r.json();
+  }
+  async function loadAccount() {
+    if (INLINE_LEVELS) return;  // the Artifact build: no backend there
+    try {
+      const me = await api("me");
+      Object.assign(account, { on: true, user: me.user, providers: me.providers || [] });
+    } catch (e) {
+      account.on = false;
+    }
+    renderAccountChip();
+    if (account.on && /[?&]signin=failed/.test(location.search)) {
+      history.replaceState(null, "", location.pathname);
+      openAccount("That sign-in didn't work. Want to try again?");
+    }
+  }
+  function renderAccountChip() {
+    const b = $("accountBtn");
+    b.hidden = !account.on;
+    const u = account.user;
+    b.innerHTML = u ? `${avatar(u)}${STAR_ICON}<span>${u.total_stars}</span>` : `${PERSON_ICON}<span class="lbl">Sign in</span>`;
+    b.title = u ? `${u.name}: ${starsWord(u.total_stars)} in all` : "Sign in to save your scores";
+  }
+  function setTotal(n) { if (account.user) { account.user.total_stars = n; renderAccountChip(); } }
+
+  async function openAccount(note) {
+    accountOpen = true; path = []; queued = null;
+    timerPause();
+    $("accountScreen").hidden = false;
+    const u = account.user;
+    $("accountTitle").textContent = u ? `Hi, ${u.name}!` : "Save your scores";
+    $("signOutBtn").hidden = !u;
+    $("accountProviders").hidden = !!u;
+    $("accountScores").hidden = $("topTitle").hidden = $("topStars").hidden = true;
+    if (!u) {
+      $("accountText").textContent = typeof note === "string" ? note
+        : account.providers.length ? "Sign in to keep your high score on every maze and count every star you find."
+        : "Sign-in isn't set up on this server yet.";
+      $("accountProviders").innerHTML = account.providers.map((p) =>
+        `<a class="pill" data-provider="${esc(p.id)}" href="${p.id === "dev" ? "auth/dev-login" : "auth/login/" + encodeURIComponent(p.id)}">${esc(p.label)}</a>`).join("");
+      const dev = $("accountProviders").querySelector('[data-provider="dev"]');
+      if (dev) dev.onclick = (e) => {
+        e.preventDefault();
+        const name = prompt("Pretend to be who?", "Test Player");
+        if (name) location.href = "auth/dev-login?name=" + encodeURIComponent(name);
+      };
+      try { $("accountProviders").querySelector("a").focus(); } catch (e) {}
+      return;
+    }
+    $("accountText").textContent = `You've found ${starsWord(u.total_stars)} in all.`;
+    try { $("accountClose").focus(); } catch (e) {}
+    try {
+      const [mine, top] = await Promise.all([api("scores"), api("leaderboard/stars?limit=5")]);
+      if (!accountOpen) return;
+      setTotal(mine.user.total_stars);
+      $("accountText").textContent = `You've found ${starsWord(mine.user.total_stars)} in all.`;
+      const mazes = LEVELS.map((L, i) => [L.id, `${i + 1}. ${L.name}`]).concat([["surprise-small", "Surprise maze"], ["surprise-big", "Big surprise maze"]]);
+      $("accountScores").innerHTML = "<tr><th>Maze</th><th>Stars</th><th>Time</th><th>Plays</th></tr>" + mazes.map(([id, name]) => {
+        const b = mine.levels[id];
+        return b ? `<tr><td>${esc(name)}</td><td>${b.stars}</td><td>${fmtTime(b.time_ms)}</td><td>${b.plays}</td></tr>`
+          : `<tr><td>${esc(name)}</td><td class="none" colspan="3">Not yet</td></tr>`;
+      }).join("");
+      $("accountScores").hidden = false;
+      if (top.players.length) {
+        $("topStars").innerHTML = top.players.map((p) => `<li>${avatar(p)}<span class="who">${esc(p.name)}</span>${STAR_ICON}${p.total_stars}</li>`).join("");
+        $("topTitle").hidden = $("topStars").hidden = false;
+      }
+    } catch (e) {
+      if (e.status === 401) { account.user = null; renderAccountChip(); openAccount("You were signed out. Sign in again to see your scores."); return; }
+      $("accountText").textContent = "Couldn't load your scores just now. Try again in a moment.";
+    }
+  }
+  function closeAccount() {
+    accountOpen = false;
+    $("accountScreen").hidden = true;
+    try { canvas.focus({ preventScroll: true }); } catch (e) {}
+  }
+  function saveFinish(stars, ms) {
+    const saved = $("winSaved");
+    saved.hidden = !account.user;
+    $("winSignIn").hidden = !account.on || !!account.user;
+    if (!account.user) return;
+    saved.textContent = "Saving your score...";
+    api("finish", { method: "POST", body: JSON.stringify({ level: scoreKey(), stars, time_ms: Math.max(1, Math.round(ms)) }) }).then((r) => {
+      setTotal(r.total_stars);
+      saved.textContent = `${r.new_best ? "New high score saved!" : "Saved!"} You've found ${starsWord(r.total_stars)} in all.`;
+    }, (e) => {
+      if (e.status === 401) { account.user = null; renderAccountChip(); saved.hidden = true; $("winSignIn").hidden = false; return; }
+      saved.textContent = "Couldn't save this one. Your next finish will still count.";
+    });
+  }
+  $("accountBtn").onclick = () => openAccount();
+  $("accountClose").onclick = closeAccount;
+  $("winSignIn").onclick = () => openAccount();
+  $("signOutBtn").onclick = () => {
+    fetch("auth/logout", { method: "POST", credentials: "same-origin" }).catch(() => {}).then(() => { account.user = null; renderAccountChip(); closeAccount(); });
+  };
+
   // ---------- boot ----------
   async function fetchJson(url) {
     const r = await fetch(url, { cache: "no-cache" });
@@ -1442,7 +1592,8 @@ const INLINE_LEVELS = null;
   async function loadLevels() {
     if (INLINE_LEVELS) return INLINE_LEVELS;
     const index = await fetchJson("levels/index.json");
-    return Promise.all(index.levels.map((f) => fetchJson("levels/" + f)));
+    // A level's id is its file name without ".json" (scores are saved under it).
+    return Promise.all(index.levels.map((f) => fetchJson("levels/" + f).then((L) => ({ id: f.replace(/\.json$/, ""), ...L }))));
   }
   function start(data) {
     loadLevels().then((levels) => { LEVELS = levels; begin(data); }, (err) => {
@@ -1458,6 +1609,7 @@ const INLINE_LEVELS = null;
     if (data.hero && HEROES[data.hero]) pickHero(data.hero, false);
     if (data.started) { started = true; $("startScreen").hidden = true; }
     loadLevel(first);
+    loadAccount();
     requestAnimationFrame(frame);
     requestAnimationFrame(drawPreviews);
   }

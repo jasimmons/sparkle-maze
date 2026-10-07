@@ -8,10 +8,49 @@ mazes, then a "surprise maze" that is new every time.
 
     python3 server.py        # then open http://localhost:8000
 
-No installs needed: the server uses only the Python standard library. The whole
+No installs needed: this server uses only the Python standard library (accounts
+need the docker compose setup below). The whole
 game runs in the browser from `web/game.html`, which loads its levels from
 `web/levels/` when it starts (so opening the HTML file straight from disk won't
 work; use the server).
+
+## Play it with accounts (docker compose)
+
+The backend in `backend/` (FastAPI) serves the same game plus an API that saves, per
+signed-in player, a high score for every maze (most stars, then fastest time) and the
+total number of stars they've ever found. Data lives in a MySQL container.
+
+1. `cp .env.example .env` and fill it in:
+   - `MYSQL_PASSWORD`, `MYSQL_ROOT_PASSWORD`: any long random strings.
+   - `SESSION_SECRET`: `python3 -c "import secrets; print(secrets.token_urlsafe(32))"`
+   - GitHub sign-in: go to https://github.com/settings/developers, **New OAuth App**,
+     Homepage URL `http://localhost:8000`, Authorization callback URL
+     `http://localhost:8000/auth/callback/github`. Copy the Client ID into
+     `GITHUB_CLIENT_ID`, then **Generate a new client secret** into `GITHUB_CLIENT_SECRET`.
+   - Google sign-in (optional): in https://console.cloud.google.com/apis/credentials make an
+     **OAuth client ID** of type Web application with redirect URI
+     `http://localhost:8000/auth/callback/google`, and fill in `GOOGLE_CLIENT_ID` and
+     `GOOGLE_CLIENT_SECRET`. Each provider shows up once its two values are set.
+   - `DEV_LOGIN=true` adds a "Pretend (dev)" sign-in for trying things without any OAuth
+     app. Local only: anyone could sign in as anyone.
+2. `docker compose up --build`, then open http://localhost:8000.
+
+The account button sits next to the timer. Signed out, the game plays exactly as before;
+signed in, every finish is saved and the button shows your star total. `.env` is
+git-ignored, so keys never get committed. When this moves to a real server, set
+`PUBLIC_URL` (e.g. `https://sparkle.example.com`), `COOKIE_SECURE=true`, and register
+OAuth callback URLs on that address.
+
+API: `GET /api/me`, `POST /api/finish` (`{level, stars, time_ms}`), `GET /api/scores`,
+`GET /api/leaderboard/stars`, `GET /api/leaderboard/levels/{level}`. A level's id is its
+file name without `.json` (or `surprise-small` / `surprise-big`). Scores come from the
+browser, so a determined player could fake them; the server only checks a run doesn't
+claim more stars than the maze has.
+
+Backend tests run on SQLite, no Docker needed:
+
+    pip install -r backend/requirements.txt pytest
+    python3 -m pytest backend/tests
 
 ## Play it online
 
