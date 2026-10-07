@@ -41,8 +41,9 @@ def full_page():
 
 
 def load_levels():
+    # Each level's id is its file name without ".json" (the game uses it to save scores).
     index = json.loads((LEVELS / "index.json").read_text(encoding="utf-8"))
-    return [json.loads((LEVELS / f).read_text(encoding="utf-8")) for f in index["levels"]]
+    return [{"id": Path(f).stem, **json.loads((LEVELS / f).read_text(encoding="utf-8"))} for f in index["levels"]]
 
 
 def inline_levels(html):
